@@ -577,7 +577,7 @@ def do_sync(use_syncer=None):
                                     log.info("%s is no longer suspended due to a previous aborted sync!", sync_name)
                                 break
                 else:
-                    printf("NEED TO FINISH IMPLEMENTING")
+                    print("NEED TO FINISH IMPLEMENTING")
                     # resp, resp_delay, resp_trigger = syncer.sync(service=sync_config['service'], instance_id=instance_id,dry_run=conf.configs['core']['dry_run'],rclone_config=conf.configs['core']['rclone_config_path'], service_account=available_accounts[i])
 
                     # if not resp and not resp_delay:
