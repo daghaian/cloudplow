@@ -192,6 +192,7 @@ class RcloneSyncer:
         self.trigger_tracks = {}
         self.delayed_check = 0
         self.delayed_trigger = None
+        self.service_account = kwargs['service_account'] if 'service_account' in kwargs else None
 
         # parse rclone_extras from kwargs
         if 'rclone_extras' in kwargs:
@@ -224,6 +225,8 @@ class RcloneSyncer:
         extras = self.__extras2string()
         if len(extras) > 2:
             cmd += ' %s' % extras
+        if self.service_account is not None:
+            cmd += ' --drive-service-account-file %s' % cmd_quote(self.service_account)
         if self.dry_run:
             cmd += ' --dry-run'
 

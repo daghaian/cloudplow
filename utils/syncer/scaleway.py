@@ -31,7 +31,6 @@ class Scaleway:
         # parse instance_destroy from kwargs (default True)
         self.instance_destroy = kwargs['instance_destroy'] if 'instance_destroy' in kwargs else True
         self.syncer_name = kwargs['syncer_name'] if 'syncer_name' in kwargs else 'Unknown Syncer'
-
         log.info("Initialized Scaleway syncer agent for %r - %s -> %s using tool: %r", self.syncer_name,
                  self.sync_from_config['sync_remote'], self.sync_to_config['sync_remote'], self.tool_path)
         return
