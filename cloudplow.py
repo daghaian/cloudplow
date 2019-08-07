@@ -334,16 +334,14 @@ def do_upload(remote=None):
                                             "uploading normally in %d hours", resp_trigger, k, resp)
 
                                         # add remote to uploader_delay
-                                        log.debug("Adding unban time for %s as %f", k,
-                                                  misc.get_lowest_remaining_time(sa_delay[k]))
-                                        uploader_delay[k] = misc.get_lowest_remaining_time(
-                                            sa_delay[k])
+                                        log.debug("Adding unban time for %s as %f", k,unbanTime))
+                                        uploader_delay[k] = unbanTime
 
                                         # send aborted upload notification
                                         notify.send(
                                             message="Upload was aborted for remote: %s due to trigger %r. "
                                                     "Uploads suspended for %d hours" %
-                                                    (k, resp_trigger, resp))
+                                                    (k, resp_trigger, unbanTime))
                             else:
                                 # send successful upload notification
                                 notify.send(
@@ -551,13 +549,13 @@ def do_sync(use_syncer=None):
                                             # this syncer was not in the syncer delay dict, so lets put it there
                                             log.info(
                                                 "Sync aborted due to trigger: %r being met, %s will continue automatic syncing normally in "
-                                                "%d hours", resp_trigger, sync_name, resp_delay)
+                                                "%d hours", resp_trigger, sync_name, unbanTime)
                                             # add syncer to syncer_delay
-                                            syncer_delay[sync_name] = misc.get_lowest_remaining_time(sa_delay[sync_name])
+                                            syncer_delay[sync_name] = unbanTime
                                             # send aborted sync notification
                                             notify.send(
                                                 message="Sync was aborted for syncer: %s due to trigger %r. Syncs suspended for %d hours" %
-                                                            (sync_name, resp_trigger, resp_delay))
+                                                            (sync_name, resp_trigger, unbanTime))
                                         else:
                                             # this syncer was already in the syncer delay dict, so lets not delay it any further
                                             log.info(
