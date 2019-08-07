@@ -15,7 +15,7 @@ from utils.cache import Cache
 from utils.notifications import Notifications
 from utils.nzbget import Nzbget
 from utils.plex import Plex
-from utils.rclone import RcloneThrottler
+from utils.rclone import RcloneThrottler, RcloneMover
 from utils.syncer import Syncer
 from utils.threads import Thread
 from utils.unionfs import UnionfsHiddenFolder
@@ -280,12 +280,16 @@ def do_upload(remote=None):
                 if sa_delay[uploader_remote] is not None:
                     available_accounts = [account for account, last_ban_time in sa_delay[uploader_remote].items() if
                                           last_ban_time is None]
-                    if len(available_accounts):
-                        available_accounts.sort()
+                    available_accounts_size = len(available_accounts)
 
-                    log.info("The following accounts are available: %s", str(available_accounts))
-                    # If there are no service accounts available, do not even bother attemping the upload
-                    if len(available_accounts) == 0:
+                    if available_accounts_size:
+                        available_accounts = misc.sorted_list_by_digit_asc(available_accounts)
+
+                    log.info("There is %d available service accounts", available_accounts_size)
+                    log.debug("Available service accounts: %s", str(available_accounts))
+
+                    # If there are no service accounts available, do not even bother attempting the upload
+                    if not available_accounts_size:
                         log.info("Upload aborted due to the fact that no service accounts "
                                  "are currently unbanned and available to use for remote %s",
                                  uploader_remote)
@@ -294,7 +298,7 @@ def do_upload(remote=None):
                         log.info("Lowest Remaining time till unban is %d", time_till_unban)
                         uploader_delay[uploader_remote] = time_till_unban
                     else:
-                        for i in range(0, len(available_accounts)):
+                        for i in range(0, available_accounts_size):
                             uploader.set_service_account(available_accounts[i])
                             resp, resp_trigger = uploader.upload()
                             if resp:
@@ -314,7 +318,8 @@ def do_upload(remote=None):
                                 else:
                                     # non 0 result indicates a trigger was met, the result is how many hours
                                     # to sleep this remote for
-                                    # Before banning remote, check that a service account did not become unbanned during upload
+                                    # Before banning remote, check that a service account did not become unbanned
+                                    # during upload
                                     check_suspended_sa(sa_delay[uploader_remote])
 
                                     unbanTime = misc.get_lowest_remaining_time(sa_delay[uploader_remote])
@@ -385,6 +390,54 @@ def do_upload(remote=None):
                         log.info("Resumed the Nzbget download queue!")
                     else:
                         log.error("Failed to resume the Nzbget download queue??")
+
+                # move from staging remote to main ?
+                if 'mover' in uploader_config and 'enabled' in uploader_config['mover']:
+                    if not uploader_config['mover']['enabled']:
+                        # if not enabled, continue the uploader loop
+                        continue
+
+                    # validate we have the bare minimum config settings set
+                    required_configs = ['move_from_remote', 'move_to_remote', 'rclone_extras']
+                    required_set = True
+                    for setting in required_configs:
+                        if setting not in uploader_config['mover']:
+                            log.error("Unable to act on '%s' mover because there was no '%s' setting in the mover "
+                                      "configuration", uploader_remote, setting)
+                            required_set = False
+                            break
+
+                    # do move if good
+                    if required_set:
+                        mover = RcloneMover(uploader_config['mover'], conf.configs['core']['rclone_binary_path'],
+                                            conf.configs['core']['rclone_config_path'],
+                                            conf.configs['core']['dry_run'], conf.configs['plex']['enabled'])
+                        log.info("Move starting from %r -> %r",
+                                 uploader_config['mover']['move_from_remote'],
+                                 uploader_config['mover']['move_to_remote'])
+
+                        # send notification that mover has started
+                        notify.send(
+                            message="Move has started for %s -> %s" % (uploader_config['mover']['move_from_remote'],
+                                                                       uploader_config['mover']['move_to_remote']))
+
+                        if mover.move():
+                            log.info("Move completed successfully from %r -> %r",
+                                     uploader_config['mover']['move_from_remote'],
+                                     uploader_config['mover']['move_to_remote'])
+                            # send notification move has finished
+                            notify.send(
+                                message="Move finished successfully for %s -> %s" % (
+                                    uploader_config['mover']['move_from_remote'],
+                                    uploader_config['mover']['move_to_remote']))
+                        else:
+                            log.error("Move failed from %r -> %r ....?", uploader_config['mover']['move_from_remote'],
+                                      uploader_config['mover']['move_to_remote'])
+                            # send notification move has failed
+                            notify.send(
+                                message="Move failed for %s -> %s" % (
+                                    uploader_config['mover']['move_from_remote'],
+                                    uploader_config['mover']['move_to_remote']))
 
         except Exception:
             log.exception("Exception occurred while uploading: ")
@@ -546,7 +599,8 @@ def do_plex_monitor():
     # create the plex object
     plex = Plex(conf.configs['plex']['url'], conf.configs['plex']['token'])
     if not plex.validate():
-        log.error("Aborting Plex Media Server stream monitor due to failure to validate supplied server URL and/or Token.")
+        log.error(
+            "Aborting Plex Media Server stream monitor due to failure to validate supplied server URL and/or Token.")
         plex_monitor_thread = None
         return
 
@@ -561,7 +615,7 @@ def do_plex_monitor():
         plex_monitor_thread = None
         return
     else:
-        log.info("Rclone RC URL was validated. Plex Media Server streams monitoring will now begin.")
+        log.info("Rclone RC URL was validated. Stream monitoring for Plex Media Server will now begin.")
 
     throttled = False
     throttle_speed = None
@@ -579,7 +633,8 @@ def do_plex_monitor():
                     stream_count += 1
 
             # are we already throttled?
-            if ((not throttled or (throttled and not rclone.throttle_active(throttle_speed))) and stream_count >= conf.configs['plex']['max_streams_before_throttle']):
+            if ((not throttled or (throttled and not rclone.throttle_active(throttle_speed))) and (
+                    stream_count >= conf.configs['plex']['max_streams_before_throttle'])):
                 log.info("There was %d playing stream(s) on Plex Media Server while it was currently un-throttled.",
                          stream_count)
                 for stream in streams:
@@ -592,7 +647,7 @@ def do_plex_monitor():
                 throttled = rclone.throttle(throttle_speed)
 
                 # send notification
-                if throttled:
+                if throttled and conf.configs['plex']['notifications']:
                     notify.send(
                         message="Throttled current upload to %s because there was %d playing stream(s) on Plex" %
                                 (throttle_speed, stream_count))
@@ -607,7 +662,7 @@ def do_plex_monitor():
                     throttle_speed = None
 
                     # send notification
-                    if not throttled:
+                    if not throttled and conf.configs['plex']['notifications']:
                         notify.send(
                             message="Un-throttled current upload because there was less than %d playing stream(s) on "
                                     "Plex Media Server" % conf.configs['plex']['max_streams_before_throttle'])
@@ -621,14 +676,17 @@ def do_plex_monitor():
                              "was now %d playing stream(s) on Plex Media Server", throttle_speed, stream_count)
 
                     throttled = rclone.throttle(throttle_speed)
-                    if throttled and conf.configs['plex']['verbose_notifications']:
+
+                    # send notification
+                    if throttled and conf.configs['plex']['notifications']:
                         notify.send(
                             message='Throttle for current upload was adjusted to %s due to %d playing stream(s)'
                                     ' on Plex Media Server' % (throttle_speed, stream_count))
 
                 else:
-                    log.info("There was %d playing stream(s) on Plex Media Server it was already throttled to %s. Throttling "
-                             "will continue.", stream_count, throttle_speed)
+                    log.info(
+                        "There was %d playing stream(s) on Plex Media Server it was already throttled to %s. Throttling "
+                        "will continue.", stream_count, throttle_speed)
 
         # the lock_file exists, so we can assume an upload is in progress at this point
         time.sleep(conf.configs['plex']['poll_interval'])

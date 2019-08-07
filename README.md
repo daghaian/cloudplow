@@ -1,11 +1,12 @@
-# Cloudplow
+<img src="assets/logo.svg" width="600" alt="Cloudplow">
 
-[![made-with-python](https://img.shields.io/badge/Made%20with-Python-blue.svg)](https://www.python.org/)
-[![License: GPL 3](https://img.shields.io/badge/License-GPL%203-blue.svg)](https://github.com/l3uddz/cloudplow/blob/master/LICENSE.md)
-[![Discord](https://img.shields.io/discord/381077432285003776.svg?colorB=177DC1&label=Discord)](https://discord.io/cloudbox)
-[![Feature Requests](https://img.shields.io/badge/Requests-Feathub-blue.svg)](http://feathub.com/l3uddz/cloudplow)
-[![Beerpay](https://beerpay.io/l3uddz/cloudplow/badge.svg?style=flat)](https://beerpay.io/l3uddz/cloudplow)
-[![Beerpay](https://beerpay.io/l3uddz/cloudplow/make-wish.svg?style=flat)](https://beerpay.io/l3uddz/cloudplow)
+
+[![made-with-python](https://img.shields.io/badge/Made%20with-Python-blue.svg?style=flat-square)](https://www.python.org/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%203-blue.svg?style=flat-square)](https://github.com/l3uddz/cloudplow/blob/master/LICENSE.md)
+[![last commit (develop)](https://img.shields.io/github/last-commit/l3uddz/cloudplow/develop.svg?colorB=177DC1&label=Last%20Commit&style=flat-square)](https://github.com/l3uddz/cloudplow/commits/develop)
+[![Discord](https://img.shields.io/discord/381077432285003776.svg?colorB=177DC1&label=Discord&style=flat-square)](https://discord.io/cloudbox)
+[![Contributing](https://img.shields.io/badge/Contributing-gray.svg?style=flat-square)](CONTRIBUTING.md)
+[![Donate](https://img.shields.io/badge/Donate-gray.svg?style=flat-square)](#donate)
 
 ---
 
@@ -27,6 +28,7 @@
 - [Usage](#usage)
   - [Automatic (Scheduled)](#automatic-scheduled)
   - [Manual (CLI)](#manual-cli)
+- [Donate](#donate)
 
 <!-- /TOC -->
 
@@ -55,19 +57,19 @@ Cloudplow has 3 main functions:
 
 # Installation
 
-1. Clone the cloudplow repo.
+1. Clone the Cloudplow repo.
 
    ```
    sudo git clone https://github.com/l3uddz/cloudplow /opt/cloudplow
    ```
 
-1. Fix permissions of the cloudplow folder (replace `user`/`group` with your info; run `id` to check).
+1. Fix permissions of the Cloudplow folder (replace `user`/`group` with your info; run `id` to check).
 
    ```
    sudo chown -R user:group /opt/cloudplow
    ```
 
-1. Go into the cloudplow folder.
+1. Go into the Cloudplow folder.
 
    ```
    cd /opt/cloudplow
@@ -85,7 +87,7 @@ Cloudplow has 3 main functions:
    sudo python3 -m pip install -r requirements.txt
    ```
 
-1. Create a shortcut for cloudplow.
+1. Create a shortcut for Cloudplow.
 
    ```
    sudo ln -s /opt/cloudplow/cloudplow.py /usr/local/bin/cloudplow
@@ -146,7 +148,7 @@ Cloudplow has 3 main functions:
         "enabled": true,
         "max_streams_before_throttle": 1,
         "poll_interval": 60,
-        "verbose_notifications": false,
+        "notifications": false,
         "rclone": {
             "throttle_speeds": {
                 "0": "100M",
@@ -252,6 +254,40 @@ Cloudplow has 3 main functions:
             "sync_remote": "box:/Backups",
             "upload_folder": "/mnt/local/Media",
             "upload_remote": "box:/Media"
+          },
+          "google_with_mover": {
+              "hidden_remote": "google:",
+              "rclone_excludes": [
+                  "**partial~",
+                  "**_HIDDEN~",
+                  ".unionfs/**",
+                  ".unionfs-fuse/**"
+              ],
+              "rclone_extras": {
+                  "--checkers": 16,
+                  "--drive-chunk-size": "64M",
+                  "--stats": "60s",
+                  "--transfers": 8,
+                  "--verbose": 1,
+                  "--skip-links": null
+              },
+              "rclone_sleeps": {
+                  "Failed to copy: googleapi: Error 403: User rate limit exceeded": {
+                      "count": 5,
+                      "sleep": 25,
+                      "timeout": 3600
+                  },
+                  " 0/s,": {
+                      "count": 15,
+                      "sleep": 25,
+                      "timeout": 140
+                  }
+              },
+              "rclone_command": "move",
+              "remove_empty_dir_depth": 2,
+              "sync_remote": "google:/Backups",
+              "upload_folder": "/mnt/local/Media",
+              "upload_remote": "google:/Media"
           }
     },
     "syncer": {
@@ -288,9 +324,20 @@ Cloudplow has 3 main functions:
             },
             "size_excludes": [
                 "downloads/*"
-            ]
+            ],
+            "service_account_path":"/home/user/.config/cloudplow/service_accounts/"
         },
         "google_downloads": {
+            "check_interval": 30,
+            "exclude_open_files": true,
+            "max_size_gb": 400,
+            "opened_excludes": [
+            ],
+            "schedule": {},
+            "size_excludes": [
+            ]
+        },
+        "google_with_mover": {
             "check_interval": 30,
             "exclude_open_files": true,
             "max_size_gb": 400,
@@ -300,8 +347,23 @@ Cloudplow has 3 main functions:
             "schedule": {},
             "size_excludes": [
                 "downloads/*"
-            ]
-        },
+            ],
+            "service_account_path":"/home/user/.config/cloudplow/service_accounts/",
+            "mover": {
+                "enabled": false,
+                "move_from_remote": "staging:Media",
+                "move_to_remote": "gdrive:Media",
+                "rclone_extras": {
+                    "--delete-empty-src-dirs": null,
+                    "--create-empty-src-dirs": null,
+                    "--stats": "60s",
+                    "--verbose": 1,
+                    "--no-traverse": null,
+                    "--drive-server-side-across-configs": null,
+                    "--user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36"
+                }
+            }
+        }
     }
 }
 ```
@@ -319,9 +381,9 @@ Cloudplow has 3 main functions:
 
 `"dry_run": true` - prevent any files being uploaded or deleted - use this to test out your config.
 
-`rclone_binary_path` - full path to rclone binary file.
+`rclone_binary_path` - full path to Rclone binary file.
 
-`rclone_config_path` - full path to rclone config file.
+`rclone_config_path` - full path to Rclone config file.
 
 ## Hidden
 UnionFS Hidden File Cleaner: Deletion of UnionFS whiteout files and their corresponding files on rclone remotes.
@@ -336,21 +398,65 @@ UnionFS Hidden File Cleaner: Deletion of UnionFS whiteout files and their corres
 },
 ```
 
-This is where you specify the location of the unionfs `_HIDDEN~` files (i.e. whiteout files) and the rclone remotes where the corresponding files will need to be deleted from. You may specify than one remote here.
+This is where you specify the location of the UnionFS `_HIDDEN~` files (i.e. whiteout files) and the Rclone remotes where the corresponding files will need to be deleted from. You may specify more than one remote here.
 
 The specific remote path, where those corresponding files are, will be specified in the `remotes` section.
 
 
 ## Notifications
 
-Notification alerts during tasks.
+```json
+"notifications": {
+  "apprise": {
+    "service": "apprise",
+    "url": "",
+    "title": ""
+  }
+},
+```
 
+Notifications alerts for both scheduled and manual Cloudplow tasks.
 
-Currently, only Pushover and Slack are supported. But more will be added later.
+Supported `services`:
+ - `apprise`
+ - `pushover`
+ - `slack`
+
+_Note: The key name can be anything, but the `service` key must be must be the exact service name (e.g. `pushover`). See below for example._
+
+```json
+"notifications": {
+  "anyname": {
+    "service": "pushover",
+  }
+},
+```
+
+### Apprise
+
+```json
+"notifications": {
+  "Apprise": {
+    "service": "apprise",
+    "url": "",
+    "title": ""
+  }
+},
+```
+
+`url` - Apprise service URL (see [here](https://github.com/caronc/apprise)).
+
+ - Required.
+
+`title` - Notification Title.
+
+ - Optional.
+
+ - Default is `Cloudplow`.
 
 ### Pushover
 
-```
+```json
 "notifications": {
     "Pushover": {
         "app_token": "",
@@ -361,38 +467,64 @@ Currently, only Pushover and Slack are supported. But more will be added later.
 },
 ```
 
-Retrieve `app_token` and `user_token` from Pushover.net and fill it in.
+`app_token`  - App Token from [Pushover.net](https://pushover.net).
 
-You can specify a priority for the messages send via Pushover using the `priority` key. It can be any Pushover priority value (https://pushover.net/api#priority)
+ - Required.
 
-Note: The key name can be anything (e.g. `"Pushover":`), however, the `"service"` must be `"pushover"`.
+`user_token` - User Token from [Pushover.net](https://pushover.net).
+
+ - Required.
+
+`priority` - [Priority](https://pushover.net/api#priority) of the notifications.
+
+ - Optional.
+
+ - Choices are: `-2`, `-1`, `0`, `1`, `2`.
+
+ - Values are not quoted.
+
+ - Default is `0`.
 
 ### Slack
 
-```
+```json
 "notifications": {
     "Slack": {
+        "service": "slack",
         "webhook_url": "",
-        "sender_name": "cloudplow",
-        "sender_icon": ":heavy_exclamation_mark:",
         "channel": "",
-        "service": "slack"
+        "sender_name": "Cloudplow",
+        "sender_icon": ":heavy_exclamation_mark:"
     }
 },
 ```
 
-Retrieve the `webhook_url` when registering your webhook to Slack
-(via https://my.slack.com/services/new/incoming-webhook/).
+`webhook_url` - [Webhook URL](https://my.slack.com/services/new/incoming-webhook/).
 
-You can use `sender_name`, `sender_icon` and `channel` to specify settings
-for your webhook. You can however leave these out and use the defaults.
+ - Required.
 
-Note: The key name can be anything (e.g. `"Slack":`), however, the `"service"` must be `"slack"`.
+`channel` - Slack channel to send the notifications to.
+
+ - Optional.
+
+ - Default is blank.
+
+`sender_name` - Sender's name for the notifications.
+
+ - Optional.
+
+ - Default is `Cloudplow`.
+
+`sender_icon` - Icon to use for the notifications.
+
+ - Optional.
+
+ - Default is `:heavy_exclamation_mark:`
 
 
 ## NZBGet
 
-Cloudplow can pause the Nzbget download queue when an upload starts; and then resume it upon the upload finishing.
+Cloudplow can pause the NZBGet download queue when an upload starts; and then resume it upon the upload finishing.
 
 ```
 "nzbget": {
@@ -403,7 +535,7 @@ Cloudplow can pause the Nzbget download queue when an upload starts; and then re
 
 `enabled` - `true` to enable.
 
-`url` - Your Nzbget URL. Can be either `http://user:pass@localhost:6789` or `https://user:pass@nzbget.domain.com`.
+`url` - Your NZBGet URL. Can be either `http://user:pass@localhost:6789` or `https://user:pass@nzbget.domain.com`.
 
 ## Plex
 
@@ -415,7 +547,7 @@ Cloudplow can throttle Rclone uploads during active, playing Plex streams (pause
     "enabled": true,
     "max_streams_before_throttle": 1,
     "poll_interval": 60,
-    "verbose_notifications": false,
+    "notifications": false,
     "rclone": {
         "throttle_speeds": {
             "0": "1000M",
@@ -443,7 +575,7 @@ Cloudplow can throttle Rclone uploads during active, playing Plex streams (pause
 
 `max_streams_before_throttle` - How many playing streams are allowed before enabling throttling.
 
-`verbose_notifications` - Send notifications when rate limit is adjusted due to more/less streams.
+`notifications` - Send notifications when throttling is set, adjusted, or unset, depending on stream count.
 
 `rclone`
 
@@ -480,7 +612,7 @@ Under `"remote"`, you have the name of the remote as the key (in the example abo
 ```
 
 
-`"hidden_remote"`: is the remote path where the unionfs hidden cleaner will remove files from (if the remote is listed under the `hidden` section).
+`"hidden_remote"`: is the remote path where the UnionFS hidden cleaner will remove files from (if the remote is listed under the `hidden` section).
 
 #### Rclone Excludes
 
@@ -510,9 +642,9 @@ These are the excludes to be used when uploading to this remote.
                 "--verbose": 1
             },
 ```
-These are rclone parameters that will be used when uploading to this remote. You may add other rclone parameters.
+These are Rclone parameters that will be used when uploading to this remote. You may use the given examples or add your own.
 
-Note: a value of null will mean `--no-traverse` instead of `--no-traverse=null`.
+Note: An argument with no value (e.g. `--no-traverse`) will be be given the value `null` (e.g. `"no-traverse": null`).
 
 
 #### Rclone Sleep (i.e. Ban Sleep)
@@ -540,7 +672,7 @@ Example:
             },
 ```
 
-`"rclone_sleeps"` are keywords or phrases that are monitored during rclone tasks that will cause this remote's upload task to abort and go into a sleep for a specified amount of time. When a remote is asleep, it will not do it's regularly scheduled uploads (as definted in `check_intervals`).
+`"rclone_sleeps"` are keywords or phrases that are monitored during Rclone tasks that will cause this remote's upload task to abort and go into a sleep for a specified amount of time. When a remote is asleep, it will not do its regularly scheduled uploads (as defined in `check_intervals`).
 
 You may list multiple keywords or phrases here.
 
@@ -548,13 +680,13 @@ In the example above, the phrase `"Failed to copy: googleapi: Error 403: User ra
 
 `"count"`: How many times this keyword/phrase has to occur within a specific time period (i.e. `timeout`), from the very first occurrence, to cause the remote to go to sleep.
 
-`"timeout"`: The time period (in seconds) during which the the phrase is counted in after its first occurance.
+`"timeout"`: The time period (in seconds) during which the the phrase is counted in after its first occurrence.
 
-  - On it's first occurrence, the time is logged and if `count` is reached within this `timeout` period, the upload task will abort and the remote will go into `sleep`.
+  - On its first occurrence, the time is logged and if the `count` is reached within this `timeout` period, the upload task will abort and the remote will go into `sleep`.
 
   - If the `timeout` period expires without reaching the `count`, the `count` will reset back to `0`.
 
-  - The `timeout` period will restart again after the first new occurance of the monitored phrase.
+  - The `timeout` period will restart again after the first new occurrence of the monitored phrase.
 
 `"sleep"`: How many hours the remote goes to sleep for, when the monitored phrase is `count`-ed during the `timeout` period.
 
@@ -562,7 +694,7 @@ In the example above, the phrase `"Failed to copy: googleapi: Error 403: User ra
 ```
             "rclone_command": "move",
 ```
-This is the desired command to be used when running any rclone uploads. Options are `move` or `copy`. Default is `move`.
+This is the desired command to be used when running any Rclone uploads. Options are `move` or `copy`. Default is `move`.
 
 #### Remove Empty Directories
 
@@ -582,11 +714,11 @@ This is the depth to min-depth to delete empty folders from relative to `upload_
 
 `"upload_folder"`: is the local path that is uploaded by the `uploader` task, once it reaches the size threshold as specified in `max_size_gb`.
 
-`"upload_remote"`: is the remote path that `uploader` task will  uploaded to.
+`"upload_remote"`: is the remote path that the `uploader` task will uploaded to.
 
 #### Sync From/To Paths
 
-`"sync_remote"`: Used by the `syncer` task. This specifies the from/to destinations used to build the rclone command. See the [syncer](#syncer) section for more on this.
+`"sync_remote"`: Used by the `syncer` task. This specifies the from/to destinations used to build the Rclone command. See the [syncer](#syncer) section for more on this.
 
 ## Uploader
 
@@ -620,19 +752,56 @@ If multiple uploader tasks are specified, the tasks will run sequentially (vs in
 
 In the example above, the uploader references `"google"` from the `remotes` section.
 
-`"check_interval"`: how often (in minutes) to check the size of this remotes `upload_folder`. Once it reaches the size threshold as specified in `max_size_gb`, the uploader will start.
+`"check_interval"`: How often (in minutes) to check the size of this remotes `upload_folder`. Once it reaches the size threshold as specified in `max_size_gb`, the uploader will start.
 
-`"exclude_open_files"`: when set to `true`, open files will be excluded from the rclone transfer (i.e. transfer will occur without them).
+`"exclude_open_files"`: When set to `true`, open files will be excluded from the Rclone upload (i.e. upload will occur without them).
 
-`"max_size_gb"`: maximum size (in gigabytes) before uploading can commence
+`"max_size_gb"`: Maximum size (in gigabytes) before uploading can commence
 
-`"opened_excludes"`: Paths the open file checker will check for when searching for open files. In the example above, any open files with `/downloads/` in it's path, would be ignored.
+`"opened_excludes"`: Paths the open file checker will check for when searching for open files. In the example above, any open files with `/downloads/` in its path, would be ignored.
 
-`"schedule"`: This section allows you to specify a time period, in 24H (HH:MM) format, for when uploads are allowed to start. Uploads in progress will not stop when `allowed_until` is reached. This setting will not affect manual uploads, only the automatic uploader in `run` mode.
-;
+`"schedule"`: Allows you to specify a time period, in 24H (HH:MM) format, for when uploads are allowed to start. Uploads in progress will not stop when `allowed_until` is reached.
+
+  - This setting will not affect manual uploads, only the automatic uploader in `run` mode.
+
 `"size_excludes"`: Paths that will not be counted in the total size calculation for `max_size_gb`.
 
-`""service_account_path"`: Path that will be scanned for JSON service account keys to be used when performing upload operations.
+`"service_account_path"`: Path that will be scanned for Google Drive service account keys (\*.json) to be used when performing upload operations.
+
+  - This is currently not supported with sync operations.
+
+
+### Mover
+
+Move operations occur at the end of an upload task (regardless if the task was successful or aborted).
+
+Can be used to move uploads from one folder to another on the same remote (i.e. server side move) or moves between Google Team Drives and Google "My Drives" with the same ownership (for this we recommend Rclone 1.48+ with the `--drive-server-side-across-configs` argument).
+
+```json
+    "mover": {
+        "enabled": true,
+        "move_from_remote": "staging:Media",
+        "move_to_remote": "gdrive:Media",
+        "rclone_extras": {
+            "--delete-empty-src-dirs": null,
+            "--create-empty-src-dirs": null,
+            "--stats": "60s",
+            "--verbose": 1,
+            "--no-traverse": null,
+            "--drive-server-side-across-configs": null,
+            "--user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36"
+        }
+    }
+```
+
+`"enabled"` - Enable or disable mover function.
+
+`"move_from_remote"` - Where to move the file/folders from.
+
+`"move_to_remote"` - Where to move the file/folders to.
+
+`"rclone_extras"` - Optional Rclone parameters.
+
 
 ## Syncer
 
@@ -765,11 +934,11 @@ Further documentation refers to the example configurations below.
     },
 ```
 
-`"rclone_extras"`: These are extra rclone parameters that will be passed to the rclone sync command (the `rclone_extras` in the remote entries are not used by the syncer).
+`"rclone_extras"`: These are extra Rclone parameters that will be passed to the Rclone sync command (the `rclone_extras` in the remote entries are not used by the syncer).
 
 `"service"`: Which syncer agent to use for the syncer task. Choices are `local` and `scaleway`. Other service providers can be added in the future.
 
-  - `local`: a remote-to-remote sync that runs locally (i.e. on the same system as the one running cloudplow).
+  - `local`: a remote-to-remote sync that runs locally (i.e. on the same system as the one running Cloudplow).
 
   - `scaleway`: a remote-to-remote sync that runs on a Scaleway instance. Further documentation will be needed to describe the setup process.
 
@@ -781,11 +950,11 @@ Further documentation refers to the example configurations below.
 
   - In the example above, this is the `gdrive:/downloads/torrents` path.
 
-`"sync_interval"`: How often to execute the sync, in hours. Only applies when cloudplow is being ran as a service (see [here](#automatic-scheduled)).
+`"sync_interval"`: How often to execute the sync, in hours. Only applies when Cloudplow is being ran as a service (see [here](#automatic-scheduled)).
 
 `"tool_path"`: Which binary to use to execute the sync.
 
-  - When using the `local` service, this will be the rclone binary path.
+  - When using the `local` service, this will be the Rclone binary path.
 
   - When using `scaleway`, this will be the binary path of the `scw` tool.
 
@@ -793,7 +962,7 @@ Further documentation refers to the example configurations below.
 
 `"instance_destroy"`:
 
-  - When this is `true`, the instance that is created for the sync task is destroyed after the task finishes.  Only applies to non `local` sync services (e.g. `scaleway`).  
+  - When this is `true`, the instance that is created for the sync task is destroyed after the task finishes.  This only applies to non-local sync services (e.g. `scaleway`).  
 
   - When this is set to `false`, it will re-use the existing instance that was previously created/shutdown after the last sync ran.
 
@@ -827,15 +996,14 @@ usage: cloudplow [-h] [--config [CONFIG]] [--logfile [LOGFILE]]
                  {clean,upload,sync,run}
 
 Script to assist cloud mount users.
-Can remove hidden files from rclone remotes, upload local content to remotes as-well as keeping remotes
-in sync with the assistance of Scaleway.
+Can remove UnionFS hidden files from Rclone remotes, upload local content to Rclone remotes, and keep Rclone Remotes in sync.
 
 positional arguments:
   {clean,upload,sync,run}
-                        "clean": clean HIDDEN files from configured unionfs mounts and rclone remotes
-                        "upload": perform clean and upload local content to configured chosen unionfs rclone remotes
-                        "sync": perform sync of configured remotes
-                        "run": starts the application
+                        "clean": perform clean of UnionFS HIDDEN files from Rclone remotes
+                        "upload": perform clean of UnionFS HIDDEN files and upload local content to Rclone remotes
+                        "sync": perform sync between Rclone remotes
+                        "run": starts the application in automatic mode
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -845,12 +1013,16 @@ optional arguments:
                         Log level (default: INFO)
 ```
 
-
 ***
 
-_If you find this project helpful, feel free to make a small donation via [Monzo](https://monzo.me/jamesbayliss9) (Credit Cards, Apple Pay, Google Pay, and others; no fees), [Paypal](https://www.paypal.me/l3uddz) (l3uddz@gmail.com), and Bitcoin (3CiHME1HZQsNNcDL6BArG7PbZLa8zUUgjL)._
+# Donate
 
-## Support on Beerpay
-Hey dude! Help me out for a couple of :beers:!
+If you find this project helpful, feel free to make a small donation to the developer:
 
-[![Beerpay](https://beerpay.io/l3uddz/cloudplow/badge.svg?style=beer-square)](https://beerpay.io/l3uddz/cloudplow)  [![Beerpay](https://beerpay.io/l3uddz/cloudplow/make-wish.svg?style=flat-square)](https://beerpay.io/l3uddz/cloudplow?focus=wish)
+  - [Monzo](https://monzo.me/jamesbayliss9): Credit Cards, Apple Pay, Google Pay
+
+  - [Beerpay](https://beerpay.io/l3uddz/cloudplow): Credit Cards
+
+  - [Paypal: l3uddz@gmail.com](https://www.paypal.me/l3uddz)
+
+  - BTC: 3CiHME1HZQsNNcDL6BArG7PbZLa8zUUgjL
