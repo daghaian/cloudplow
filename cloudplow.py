@@ -98,36 +98,41 @@ def init_notifications():
     return
 
 
-def init_service_accounts():
+def init_service_accounts(mode):
     global sa_delay
     global uploader_delay
+    global syncer_delay
 
-    for uploader_remote, uploader_config in conf.configs['uploader'].items():
-        if uploader_remote not in sa_delay:
-            sa_delay[uploader_remote] = None
-        if 'service_account_path' in uploader_config and os.path.exists(uploader_config['service_account_path']):
+    for k, v in conf.configs[mode].items():
+        if k not in sa_delay:
+            sa_delay[k] = None
+        if 'service_account_path' in v and os.path.exists(v['service_account_path']):
             # If service_account path provided, loop over the service account files and provide
             # one at a time when starting the uploader. If upload completes successfully, do not attempt
             # to use the other accounts
-            accounts = {os.path.join(os.path.normpath(uploader_config['service_account_path']), file): None for file
-                        in os.listdir(os.path.normpath(uploader_config['service_account_path'])) if
+            accounts = {os.path.join(os.path.normpath(v['service_account_path']), file): None for file
+                        in os.listdir(os.path.normpath(v['service_account_path'])) if
                         file.endswith(".json")}
-            current_accounts = sa_delay[uploader_remote]
+            current_accounts = sa_delay[k]
             if current_accounts is not None:
                 for account in accounts:
                     if account not in current_accounts:
-                        log.debug("New service account %s has been added for remote %s", account, uploader_remote)
+                        log.debug("New service account %s has been added for remote %s", account, k)
                         current_accounts[account] = None
-                sa_delay[uploader_remote] = current_accounts
+                sa_delay[k] = current_accounts
                 if len(current_accounts) < len(accounts):
                     log.debug("Additional service accounts were added. Lifting any current bans for remote: %s",
-                              uploader_remote)
-                    uploader_delay.pop(uploader_remote, None)
+                              k)
+                    if mode == 'syncer':
+                        syncer_delay.pop(k, None)
+                    else:
+                        uploader_delay.pop(k,None)
+                    
             else:
                 log.debug("The following accounts are defined: %s and are about to be added to remote %s",
                           str(accounts),
-                          uploader_remote)
-                sa_delay[uploader_remote] = accounts
+                          k)
+                sa_delay[k] = accounts
 
 
 def init_syncers():
@@ -247,17 +252,17 @@ def do_upload(remote=None):
         log.info("Starting upload")
         try:
             # loop each supplied uploader config
-            for uploader_remote, uploader_config in conf.configs['uploader'].items():
+            for k, v in conf.configs['uploader'].items():
                 # if remote is not None, skip this remote if it is not == remote
-                if remote and uploader_remote != remote:
+                if remote and k != remote:
                     continue
 
                 # retrieve rclone config for this remote
-                rclone_config = conf.configs['remotes'][uploader_remote]
+                rclone_config = conf.configs['remotes'][k]
 
                 # send notification that upload is starting
                 notify.send(message="Upload of %d GB has begun for remote: %s" % (
-                    path.get_size(rclone_config['upload_folder'], uploader_config['size_excludes']), uploader_remote))
+                    path.get_size(rclone_config['upload_folder'], v['size_excludes']), k))
 
                 # start the plex stream monitor before the upload begins, if enabled
                 if conf.configs['plex']['enabled'] and plex_monitor_thread is None:
@@ -272,13 +277,13 @@ def do_upload(remote=None):
                     else:
                         log.error("Failed to pause the Nzbget download queue, upload commencing anyway...")
 
-                uploader = Uploader(uploader_remote, uploader_config, rclone_config,
+                uploader = Uploader(k, v, rclone_config,
                                     conf.configs['core']['dry_run'],
                                     conf.configs['core']['rclone_binary_path'],
                                     conf.configs['core']['rclone_config_path'], conf.configs['plex']['enabled'])
 
-                if sa_delay[uploader_remote] is not None:
-                    available_accounts = [account for account, last_ban_time in sa_delay[uploader_remote].items() if
+                if sa_delay[k] is not None:
+                    available_accounts = [account for account, last_ban_time in sa_delay[k].items() if
                                           last_ban_time is None]
                     available_accounts_size = len(available_accounts)
 
@@ -292,92 +297,92 @@ def do_upload(remote=None):
                     if not available_accounts_size:
                         log.info("Upload aborted due to the fact that no service accounts "
                                  "are currently unbanned and available to use for remote %s",
-                                 uploader_remote)
+                                 k)
                         # add remote to uploader_delay
-                        time_till_unban = misc.get_lowest_remaining_time(sa_delay[uploader_remote])
+                        time_till_unban = misc.get_lowest_remaining_time(sa_delay[k])
                         log.info("Lowest Remaining time till unban is %d", time_till_unban)
-                        uploader_delay[uploader_remote] = time_till_unban
+                        uploader_delay[k] = time_till_unban
                     else:
                         for i in range(0, available_accounts_size):
                             uploader.set_service_account(available_accounts[i])
                             resp, resp_trigger = uploader.upload()
                             if resp:
-                                current_data = sa_delay[uploader_remote]
+                                current_data = sa_delay[k]
                                 current_data[available_accounts[i]] = time.time() + ((60 * 60) * resp)
-                                sa_delay[uploader_remote] = current_data
+                                sa_delay[k] = current_data
                                 log.debug("Setting account %s as unbanned at %f", available_accounts[i],
-                                          sa_delay[uploader_remote][available_accounts[i]])
+                                          sa_delay[k][available_accounts[i]])
                                 if i != (len(available_accounts) - 1):
                                     log.info("Upload aborted due to trigger: %r being met, "
                                              "%s is cycling to service_account file: %r",
-                                             resp_trigger, uploader_remote, available_accounts[i + 1])
+                                             resp_trigger, k, available_accounts[i + 1])
                                     # Set unban time for current service account
                                     log.debug("Setting service account %s as banned for remote: %s",
-                                              available_accounts[i], uploader_remote)
+                                              available_accounts[i], k)
                                     continue
                                 else:
                                     # non 0 result indicates a trigger was met, the result is how many hours
                                     # to sleep this remote for
                                     # Before banning remote, check that a service account did not become unbanned
                                     # during upload
-                                    check_suspended_sa(sa_delay[uploader_remote])
+                                    check_suspended_sa(sa_delay[k])
 
-                                    unbanTime = misc.get_lowest_remaining_time(sa_delay[uploader_remote])
+                                    unbanTime = misc.get_lowest_remaining_time(sa_delay[k])
                                     if unbanTime is not None:
                                         log.info(
                                             "Upload aborted due to trigger: %r being met, %s will continue automatic "
-                                            "uploading normally in %d hours", resp_trigger, uploader_remote, resp)
+                                            "uploading normally in %d hours", resp_trigger, k, resp)
 
                                         # add remote to uploader_delay
-                                        log.debug("Adding unban time for %s as %f", uploader_remote,
-                                                  misc.get_lowest_remaining_time(sa_delay[uploader_remote]))
-                                        uploader_delay[uploader_remote] = misc.get_lowest_remaining_time(
-                                            sa_delay[uploader_remote])
+                                        log.debug("Adding unban time for %s as %f", k,
+                                                  misc.get_lowest_remaining_time(sa_delay[k]))
+                                        uploader_delay[k] = misc.get_lowest_remaining_time(
+                                            sa_delay[k])
 
                                         # send aborted upload notification
                                         notify.send(
                                             message="Upload was aborted for remote: %s due to trigger %r. "
                                                     "Uploads suspended for %d hours" %
-                                                    (uploader_remote, resp_trigger, resp))
+                                                    (k, resp_trigger, resp))
                             else:
                                 # send successful upload notification
                                 notify.send(
-                                    message="Upload was completed successfully for remote: %s" % uploader_remote)
+                                    message="Upload was completed successfully for remote: %s" % k)
 
                                 # Remove ban for service account
-                                sa_delay[uploader_remote][available_accounts[i]] = None
+                                sa_delay[k][available_accounts[i]] = None
                                 break
                 else:
                     resp, resp_trigger = uploader.upload()
                     if resp:
-                        if uploader_remote not in uploader_delay:
+                        if k not in uploader_delay:
                             # this uploader was not already in the delay dict, so lets put it there
                             log.info(
                                 "Upload aborted due to trigger: %r being met, %s will continue automatic uploading "
-                                "normally in %d hours", resp_trigger, uploader_remote, resp)
+                                "normally in %d hours", resp_trigger, k, resp)
                             # add remote to uploader_delay
-                            uploader_delay[uploader_remote] = time.time() + ((60 * 60) * resp)
+                            uploader_delay[k] = time.time() + ((60 * 60) * resp)
                             # send aborted upload notification
                             notify.send(
                                 message="Upload was aborted for remote: %s due to trigger %r. Uploads suspended for %d"
-                                        " hours" % (uploader_remote, resp_trigger, resp))
+                                        " hours" % (k, resp_trigger, resp))
                         else:
                             # this uploader is already in the delay dict, lets not delay it any further
                             log.info(
                                 "Upload aborted due to trigger: %r being met for %s uploader",
-                                resp_trigger, uploader_remote)
+                                resp_trigger, k)
                             # send aborted upload notification
                             notify.send(
                                 message="Upload was aborted for remote: %s due to trigger %r." %
-                                        (uploader_remote, resp_trigger))
+                                        (k, resp_trigger))
                     else:
-                        log.info("Upload completed successfully for uploader: %s", uploader_remote)
+                        log.info("Upload completed successfully for uploader: %s", k)
                         # send successful upload notification
-                        notify.send(message="Upload was completed successfully for remote: %s" % uploader_remote)
+                        notify.send(message="Upload was completed successfully for remote: %s" % k)
                         # remove uploader from uploader_delays (as its no longer banned)
-                        if uploader_remote in uploader_delay and uploader_delay.pop(uploader_remote, None) is not None:
+                        if k in uploader_delay and uploader_delay.pop(k, None) is not None:
                             # this uploader was in the delay dict, but upload was successful, lets remove it
-                            log.info("%s is no longer suspended due to a previous aborted upload!", uploader_remote)
+                            log.info("%s is no longer suspended due to a previous aborted upload!", k)
 
                 # remove leftover empty directories from disk
                 if not conf.configs['core']['dry_run']:
@@ -392,8 +397,8 @@ def do_upload(remote=None):
                         log.error("Failed to resume the Nzbget download queue??")
 
                 # move from staging remote to main ?
-                if 'mover' in uploader_config and 'enabled' in uploader_config['mover']:
-                    if not uploader_config['mover']['enabled']:
+                if 'mover' in v and 'enabled' in v['mover']:
+                    if not v['mover']['enabled']:
                         # if not enabled, continue the uploader loop
                         continue
 
@@ -401,43 +406,43 @@ def do_upload(remote=None):
                     required_configs = ['move_from_remote', 'move_to_remote', 'rclone_extras']
                     required_set = True
                     for setting in required_configs:
-                        if setting not in uploader_config['mover']:
+                        if setting not in v['mover']:
                             log.error("Unable to act on '%s' mover because there was no '%s' setting in the mover "
-                                      "configuration", uploader_remote, setting)
+                                      "configuration", k, setting)
                             required_set = False
                             break
 
                     # do move if good
                     if required_set:
-                        mover = RcloneMover(uploader_config['mover'], conf.configs['core']['rclone_binary_path'],
+                        mover = RcloneMover(v['mover'], conf.configs['core']['rclone_binary_path'],
                                             conf.configs['core']['rclone_config_path'],
                                             conf.configs['core']['dry_run'], conf.configs['plex']['enabled'])
                         log.info("Move starting from %r -> %r",
-                                 uploader_config['mover']['move_from_remote'],
-                                 uploader_config['mover']['move_to_remote'])
+                                 v['mover']['move_from_remote'],
+                                 v['mover']['move_to_remote'])
 
                         # send notification that mover has started
                         notify.send(
-                            message="Move has started for %s -> %s" % (uploader_config['mover']['move_from_remote'],
-                                                                       uploader_config['mover']['move_to_remote']))
+                            message="Move has started for %s -> %s" % (v['mover']['move_from_remote'],
+                                                                       v['mover']['move_to_remote']))
 
                         if mover.move():
                             log.info("Move completed successfully from %r -> %r",
-                                     uploader_config['mover']['move_from_remote'],
-                                     uploader_config['mover']['move_to_remote'])
+                                     v['mover']['move_from_remote'],
+                                     v['mover']['move_to_remote'])
                             # send notification move has finished
                             notify.send(
                                 message="Move finished successfully for %s -> %s" % (
-                                    uploader_config['mover']['move_from_remote'],
-                                    uploader_config['mover']['move_to_remote']))
+                                    v['mover']['move_from_remote'],
+                                    v['mover']['move_to_remote']))
                         else:
-                            log.error("Move failed from %r -> %r ....?", uploader_config['mover']['move_from_remote'],
-                                      uploader_config['mover']['move_to_remote'])
+                            log.error("Move failed from %r -> %r ....?", v['mover']['move_from_remote'],
+                                      v['mover']['move_to_remote'])
                             # send notification move has failed
                             notify.send(
                                 message="Move failed for %s -> %s" % (
-                                    uploader_config['mover']['move_from_remote'],
-                                    uploader_config['mover']['move_to_remote']))
+                                    v['mover']['move_from_remote'],
+                                    v['mover']['move_to_remote']))
 
         except Exception:
             log.exception("Exception occurred while uploading: ")
@@ -448,6 +453,7 @@ def do_upload(remote=None):
 @decorators.timed
 def do_sync(use_syncer=None):
     global syncer_delay
+    global sa_delay
 
     lock_file = lock.sync()
     if lock_file.is_locked():
@@ -491,6 +497,7 @@ def do_sync(use_syncer=None):
                 notify.send(message='Sync has begun for syncer: %s' % sync_name)
 
                 # do sync
+                
                 resp, resp_delay, resp_trigger = syncer.sync(service=sync_config['service'], instance_id=instance_id,
                                                              dry_run=conf.configs['core']['dry_run'],
                                                              rclone_config=conf.configs['core']['rclone_config_path'])
@@ -780,20 +787,21 @@ if __name__ == "__main__":
         elif conf.args['cmd'] == 'upload':
             log.info("Started in upload mode")
             # initialize service accounts if provided in confing
-            init_service_accounts()
+            init_service_accounts(mode='uploader')
             do_hidden()
             do_upload()
         elif conf.args['cmd'] == 'sync':
             log.info("Starting in sync mode")
             log.warning("Sync currently has a bug while displaying output to the console. "
                         "Tail the logfile to view readable logs!")
+            init_service_accounts(mode='syncer')
             init_syncers()
             do_sync()
         elif conf.args['cmd'] == 'run':
             log.info("Started in run mode")
 
             # initialize service accounts if provided in confing
-            init_service_accounts()
+            init_service_accounts(mode='uploader')
 
             # add uploaders to schedule
             for uploader, uploader_conf in conf.configs['uploader'].items():
