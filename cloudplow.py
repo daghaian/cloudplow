@@ -543,7 +543,7 @@ def do_sync(use_syncer=None):
                                 else:
                                     # non 0 resp_delay result indicates a trigger was met, the result is how many hours to sleep
                                     check_suspended_sa(sa_delay[sync_name])
-                                    unbanTime = misc.get_lowest_remaining_time(sa_delay[ksync_name])
+                                    unbanTime = misc.get_lowest_remaining_time(sa_delay[sync_name])
                                     if unbanTime is not None:
                                         if sync_name not in syncer_delay:
                                             # this syncer was not in the syncer delay dict, so lets put it there
