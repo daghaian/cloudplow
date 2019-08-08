@@ -334,7 +334,7 @@ def do_upload(remote=None):
                                             "uploading normally in %d hours", resp_trigger, k, resp)
 
                                         # add remote to uploader_delay
-                                        log.debug("Adding unban time for %s as %f", k,unbanTime))
+                                        log.debug("Adding unban time for %s as %f", k,unbanTime)
                                         uploader_delay[k] = unbanTime
 
                                         # send aborted upload notification
