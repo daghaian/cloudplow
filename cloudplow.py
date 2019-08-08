@@ -575,45 +575,44 @@ def do_sync(use_syncer=None):
                                     log.info("%s is no longer suspended due to a previous aborted sync!", sync_name)
                                 break
                 else:
-                    print("NEED TO FINISH IMPLEMENTING")
-                    # resp, resp_delay, resp_trigger = syncer.sync(service=sync_config['service'], instance_id=instance_id,dry_run=conf.configs['core']['dry_run'],rclone_config=conf.configs['core']['rclone_config_path'], service_account=available_accounts[i])
+                    resp, resp_delay, resp_trigger = syncer.sync(service=sync_config['service'], instance_id=instance_id,dry_run=conf.configs['core']['dry_run'],rclone_config=conf.configs['core']['rclone_config_path'], service_account=available_accounts[i])
 
-                    # if not resp and not resp_delay:
-                    #     log.error("Sync unexpectedly failed for syncer: %s", sync_name)
-                    #     # send unexpected sync fail notification
-                    #     notify.send(
-                    #         message='Sync failed unexpectedly for syncer: %s. '
-                    #                 'Manually check no instances are still running!' % sync_name)
+                    if not resp and not resp_delay:
+                        log.error("Sync unexpectedly failed for syncer: %s", sync_name)
+                        # send unexpected sync fail notification
+                        notify.send(
+                            message='Sync failed unexpectedly for syncer: %s. '
+                                    'Manually check no instances are still running!' % sync_name)
 
-                    # elif not resp and resp_delay and resp_trigger:
-                    #     # non 0 resp_delay result indicates a trigger was met, the result is how many hours to sleep
-                    #     if sync_name not in syncer_delay:
-                    #         # this syncer was not in the syncer delay dict, so lets put it there
-                    #         log.info(
-                    #             "Sync aborted due to trigger: %r being met, %s will continue automatic syncing normally in "
-                    #             "%d hours", resp_trigger, sync_name, resp_delay)
-                    #         # add syncer to syncer_delay
-                    #         syncer_delay[sync_name] = time.time() + ((60 * 60) * resp_delay)
-                    #         # send aborted sync notification
-                    #         notify.send(
-                    #             message="Sync was aborted for syncer: %s due to trigger %r. Syncs suspended for %d hours" %
-                    #                     (sync_name, resp_trigger, resp_delay))
-                    #     else:
-                    #         # this syncer was already in the syncer delay dict, so lets not delay it any further
-                    #         log.info(
-                    #             "Sync aborted due to trigger: %r being met for %s syncer", resp_trigger, sync_name)
-                    #         # send aborted sync notification
-                    #         notify.send(
-                    #             message="Sync was aborted for syncer: %s due to trigger %r." %
-                    #                     (sync_name, resp_trigger))
-                    # else:
-                    #     log.info("Syncing completed successfully for syncer: %s", sync_name)
-                    #     # send successful sync notification
-                    #     notify.send(message="Sync was completed successfully for syncer: %s" % sync_name)
-                    #     # remove syncer from syncer_delay(as its no longer banned)
-                    #     if sync_name in syncer_delay and syncer_delay.pop(sync_name, None) is not None:
-                    #         # this syncer was in the delay dict, but sync was successful, lets remove it
-                    #         log.info("%s is no longer suspended due to a previous aborted sync!", sync_name)
+                    elif not resp and resp_delay and resp_trigger:
+                        # non 0 resp_delay result indicates a trigger was met, the result is how many hours to sleep
+                        if sync_name not in syncer_delay:
+                            # this syncer was not in the syncer delay dict, so lets put it there
+                            log.info(
+                                "Sync aborted due to trigger: %r being met, %s will continue automatic syncing normally in "
+                                "%d hours", resp_trigger, sync_name, resp_delay)
+                            # add syncer to syncer_delay
+                            syncer_delay[sync_name] = time.time() + ((60 * 60) * resp_delay)
+                            # send aborted sync notification
+                            notify.send(
+                                message="Sync was aborted for syncer: %s due to trigger %r. Syncs suspended for %d hours" %
+                                        (sync_name, resp_trigger, resp_delay))
+                        else:
+                            # this syncer was already in the syncer delay dict, so lets not delay it any further
+                            log.info(
+                                "Sync aborted due to trigger: %r being met for %s syncer", resp_trigger, sync_name)
+                            # send aborted sync notification
+                            notify.send(
+                                message="Sync was aborted for syncer: %s due to trigger %r." %
+                                        (sync_name, resp_trigger))
+                    else:
+                        log.info("Syncing completed successfully for syncer: %s", sync_name)
+                        # send successful sync notification
+                        notify.send(message="Sync was completed successfully for syncer: %s" % sync_name)
+                        # remove syncer from syncer_delay(as its no longer banned)
+                        if sync_name in syncer_delay and syncer_delay.pop(sync_name, None) is not None:
+                            # this syncer was in the delay dict, but sync was successful, lets remove it
+                            log.info("%s is no longer suspended due to a previous aborted sync!", sync_name)
 
                 # destroy instance
                 resp = syncer.destroy(service=sync_config['service'], instance_id=instance_id)
